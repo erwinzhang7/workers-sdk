@@ -23,10 +23,9 @@ The goal is not to create one large agent that can mutate anything in the reposi
 - The Worker uses Cloudflare Workers AI through Flue's Cloudflare provider.
 - The Hono application exposes the Flue GitHub channel and does not expose a public agent route.
 - Incoming GitHub webhook signatures are verified with `GITHUB_WEBHOOK_SECRET`.
-- Outbound GitHub API calls currently use `GITHUB_TOKEN`.
-- Created issue comments and pull request review comments are dispatched to a typed, dispatch-only `GithubAssistant` agent.
-- The assistant has a narrowly scoped tool for commenting only on the issue or pull request associated with the verified event.
-- The GitHub channel records delivery and thread metadata that later routing and deduplication can use.
+- Every verified non-ping delivery is acknowledged without dispatching an agent, invoking Workers AI, or writing to GitHub.
+- `GITHUB_TOKEN`, the Octokit client, and a narrowly scoped comment tool are retained as generated placeholders for later feature work. The `GithubAssistant` does not register the tool.
+- The typed `GithubAssistant` is retained to validate the generated Flue and Durable Object plumbing, but nothing currently dispatches it.
 - The temporary workspace smoke agent, smoke route, `FLUE_BEARER_TOKEN`, and bearer authentication middleware have been removed. They were useful only for validating the initial workspace integration and are not part of the product architecture.
 - The project uses the current Flue Cloudflare Computer blueprint rather than the predecessor Cloudflare Shell and Codemode adapter. The adapter is available to future sandbox-backed agents but is not used by the current `GithubAssistant`.
 - Cloudflare Computer is the selected experimental dogfooding workspace for durable files, shallow Git checkouts, and shell-expressible analysis. Its default Worker shell does not provide native binaries or package managers; tasks that require those capabilities should explicitly escalate to its container backend, Cloudflare Sandbox, GitHub Actions, or another isolated Linux execution environment.
@@ -46,8 +45,10 @@ These are migration inputs, not obsolete code. A Flue feature should reuse their
 
 ### Not implemented in Flue yet
 
-The current `GithubAssistant` is a foundation for verified, scoped replies. It does not yet:
+The current receive-only channel does not yet:
 
+- dispatch the placeholder `GithubAssistant`;
+- reply to issue or pull request comments;
 - triage newly opened issues or pull requests;
 - assess whether an issue has merit;
 - search for duplicates;
@@ -83,7 +84,7 @@ Each phase below should normally be its own pull request.
 ### 1. Production webhook baseline
 
 - Deploy the Flue Worker and configure `GITHUB_TOKEN` and `GITHUB_WEBHOOK_SECRET`.
-- Subscribe the GitHub webhook only to events that have implemented handlers.
+- Verify signed delivery and empty acknowledgement behaviour in a dedicated test repository before subscribing the webhook to events with implemented handlers.
 - Add focused tests for signature verification, event routing, scoped writes, and ignored events.
 - Add idempotency based on webhook delivery IDs so retried deliveries cannot create duplicate work or comments.
 - Establish a stable hidden marker and update-in-place convention for automated comments.

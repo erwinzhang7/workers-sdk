@@ -1,8 +1,7 @@
 "use agent";
 
-import { type Agent, useInitialData, useModel, useTool } from "@flue/runtime";
+import { type Agent, useInitialData, useModel } from "@flue/runtime";
 import * as v from "valibot";
-import { commentOnIssue } from "../channels/github";
 
 const InitialData = v.object({
 	issueNumber: v.number(),
@@ -20,11 +19,8 @@ export const GithubAssistant: Agent = () => {
 		throw new Error("The GitHub channel must create this agent.");
 	}
 
-	useTool(commentOnIssue(data));
-
-	return `Respond to verified comments on ${data.owner}/${data.repo}#${data.issueNumber}, titled "${data.title}" and opened by ${data.openedBy}.
-Use the bound GitHub comment tool only when a useful response is warranted.
-Never target a different repository, issue, or pull request.`;
+	return `This placeholder agent represents ${data.owner}/${data.repo}#${data.issueNumber}, titled "${data.title}" and opened by ${data.openedBy}.
+It has no tools and must not perform side effects.`;
 };
 
 GithubAssistant.agentName = "github-assistant";

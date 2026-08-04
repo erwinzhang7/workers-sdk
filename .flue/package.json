@@ -7,6 +7,7 @@
 		"build": "vite build",
 		"cf-typegen": "wrangler types --config dist/workers_sdk_flue/wrangler.json --include-runtime=false",
 		"check:type": "tsc",
+		"deploy": "wrangler deploy --config dist/workers_sdk_flue/wrangler.json",
 		"dev": "vite dev"
 	},
 	"devDependencies": {

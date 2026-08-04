@@ -1,6 +1,6 @@
 # Workers SDK Flue
 
-This private workspace contains the Flue agents used by Workers SDK automation. It targets Cloudflare with Flue v2.0.2 and includes a Cloudflare Computer adapter for future agents that need a durable workspace, shallow Git checkouts, and shell-expressible analysis without provisioning a Container.
+This private workspace contains the Flue plumbing for future Workers SDK automation. It targets Cloudflare with Flue v2 and includes a Cloudflare Computer adapter for future agents that need a durable workspace, shallow Git checkouts, and shell-expressible analysis without provisioning a Container. The current GitHub channel is receive-only: it verifies and acknowledges webhook deliveries without dispatching an agent or writing to GitHub.
 
 ## Setup
 
@@ -26,7 +26,7 @@ pnpm --filter @cloudflare/workers-sdk-flue cf-typegen
 Create the ignored `.flue/.env` file with the required local secrets:
 
 ```sh
-GITHUB_TOKEN=replace-with-a-github-token
+GITHUB_TOKEN=unused-placeholder
 GITHUB_WEBHOOK_SECRET=replace-with-a-random-webhook-secret
 ```
 
@@ -35,6 +35,36 @@ Start the Cloudflare development server:
 ```sh
 pnpm --filter @cloudflare/workers-sdk-flue dev
 ```
+
+### Test the webhook locally
+
+The development server prints its local URL, which is normally `http://localhost:5173`. With `GITHUB_WEBHOOK_SECRET=local-webhook-secret` in `.flue/.env`, send a signed synthetic delivery from another terminal:
+
+```sh
+payload='{}'
+signature="$(printf '%s' "$payload" | openssl dgst -sha256 -hmac 'local-webhook-secret' -hex | awk '{print $NF}')"
+
+curl -i -X POST http://localhost:5173/channels/github/webhook \
+	-H 'Content-Type: application/json' \
+	-H 'X-GitHub-Delivery: local-test-1' \
+	-H 'X-GitHub-Event: issues' \
+	-H "X-Hub-Signature-256: sha256=$signature" \
+	-d "$payload"
+```
+
+A valid signature returns an empty `200` response. An invalid or missing signature returns `401`. The receive-only handler makes no Workers AI or GitHub API calls.
+
+To test a real GitHub webhook, expose the development URL with `cloudflared tunnel --url http://localhost:5173`, use the generated HTTPS URL as the webhook host in a dedicated test repository, and configure the same webhook secret at both ends.
+
+## Deployment
+
+The deploy script uses Flue's generated Wrangler configuration and deliberately does not build the project:
+
+```sh
+pnpm --filter @cloudflare/workers-sdk-flue run deploy
+```
+
+Configure the Workers project to run `pnpm --filter @cloudflare/workers-sdk-flue build` before that deploy command. The explicit `run` is required because `pnpm deploy` is also a built-in pnpm command. For a manual deployment, run the build command yourself first so `.flue/dist/workers_sdk_flue/wrangler.json` exists.
 
 ## Cloudflare Computer
 
@@ -46,17 +76,16 @@ The default Worker shell does not provide native binaries or package managers. R
 
 ## GitHub channel
 
-Configure `GITHUB_TOKEN` and `GITHUB_WEBHOOK_SECRET` as secrets on the deployed Worker. `GITHUB_TOKEN` authenticates outbound GitHub API requests.
-`GITHUB_WEBHOOK_SECRET` verifies inbound webhook signatures and must match the secret configured in GitHub.
+Configure `GITHUB_TOKEN` and `GITHUB_WEBHOOK_SECRET` as secrets on the deployed Worker. `GITHUB_WEBHOOK_SECRET` verifies inbound webhook signatures and must match the secret configured in GitHub. `GITHUB_TOKEN` is retained as a required placeholder for the generated outbound GitHub client, but the receive-only implementation does not use it and it may contain a dummy value.
 
 Create a GitHub webhook with these settings:
 
 - Payload URL: `https://<worker-host>/channels/github/webhook`
 - Content type: `application/json`
 - Secret: the deployed `GITHUB_WEBHOOK_SECRET` value
-- Events: **Issue comments** and **Pull request review comments**
+- Events: only the events selected for connectivity testing
 
-The webhook route uses GitHub signature verification. Created comments are dispatched to the `github-assistant` agent, which can reply only to the repository and issue or pull request associated with that verified webhook. The agent is dispatch-only and has no public agent route.
+The webhook route verifies the GitHub signature and returns an empty `200` for every verified non-ping delivery. It does not dispatch the `github-assistant`, invoke Workers AI, or write to GitHub. The generated assistant and scoped comment tool remain as placeholders, but the assistant does not register the tool and has no public route.
 
 ## Planned follow-up pull requests
 

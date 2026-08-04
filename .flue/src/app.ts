@@ -15,7 +15,7 @@ setProvider(
 
 const app = new Hono().route("/channels/github", github.route());
 
-// Triage agents are driven by verified GitHub events and should remain
-// dispatch-only unless a future feature has a specific authenticated HTTP use.
+// Future triage agents should be driven by verified GitHub events and remain
+// dispatch-only unless a feature has a specific authenticated HTTP use.
 
 export default app;
